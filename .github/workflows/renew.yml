@@ -1,4 +1,4 @@
-name: JustRunMy 自动续期 (无序随机版)
+name: Just-RunMy Auto Renew
 
 on:
   workflow_dispatch:
@@ -125,7 +125,6 @@ jobs:
         path: "*.png"
         retention-days: 3
 
-    # ================= 新增：防停用 =================
     - name: 🕒 Keep Actions Alive (time.txt)
       if: always()
       run: |
