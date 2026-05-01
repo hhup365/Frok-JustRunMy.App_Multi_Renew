@@ -11,9 +11,6 @@ from seleniumbase import SB
 LOGIN_URL = "https://justrunmy.app/id/Account/Login"
 DOMAIN    = "justrunmy.app"
 
-# ============================================================
-#  环境变量与全局变量
-# ============================================================
 EMAIL        = os.environ.get("ACC")
 PASSWORD     = os.environ.get("ACC_PWD")
 TG_BOT_TOKEN = os.environ.get("TG_TOKEN")
@@ -26,9 +23,6 @@ if not EMAIL or not PASSWORD:
 
 DYNAMIC_APP_NAME = "未知应用"
 
-# ============================================================
-#  Telegram 推送模块
-# ============================================================
 def send_tg_message(status_icon, status_text, time_left):
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
         print("未配置 TG_TOKEN 或 TG_ID，跳过 Telegram 推送。")
@@ -56,9 +50,6 @@ def send_tg_message(status_icon, status_text, time_left):
     except Exception as e:
         print(f"  Telegram 通知发送异常: {e}")
 
-# ============================================================
-#  页面注入脚本 (Turnstile 辅助)
-# ============================================================
 _EXPAND_JS = """
 (function() {
     var ts = document.querySelector('input[name="cf-turnstile-response"]');
@@ -133,9 +124,6 @@ _WININFO_JS = """
 })()
 """
 
-# ============================================================
-#  底层输入工具
-# ============================================================
 def js_fill_input(sb, selector: str, text: str):
     safe_text = text.replace('\\', '\\\\').replace('"', '\\"')
     sb.execute_script(f"""
@@ -202,9 +190,6 @@ def _click_turnstile(sb):
     print(f"  物理级点击 Turnstile ({ax}, {ay})")
     _xdotool_click(ax, ay)
 
-# ============================================================
-#  人机验证处理
-# ============================================================
 def handle_turnstile(sb) -> bool:
     print("处理 Cloudflare Turnstile 验证...")
     time.sleep(2)
@@ -238,9 +223,6 @@ def handle_turnstile(sb) -> bool:
     print("  Turnstile 6 次均失败")
     return False
 
-# ============================================================
-#  账户登录模块（保持不变）
-# ============================================================
 def login(sb) -> bool:
     print(f"打开登录页面: {LOGIN_URL}")
     sb.uc_open_with_reconnect(LOGIN_URL, reconnect_time=5)
@@ -296,9 +278,6 @@ def login(sb) -> bool:
     sb.save_screenshot("login_failed.png")
     return False
 
-# ============================================================
-#  自动续期模块（修复版）
-# ============================================================
 def renew(sb) -> bool:
     global DYNAMIC_APP_NAME
 
@@ -309,7 +288,7 @@ def renew(sb) -> bool:
     # ── 1. 进入控制面板 ──────────────────────────────────────
     print("进入控制面板: https://justrunmy.app/panel")
     sb.open("https://justrunmy.app/panel")
-    time.sleep(3)  # 与第一份脚本保持一致，3s 已足够
+    time.sleep(3)
 
     # ── 2. 抓取应用名称并进入详情页 ─────────────────────────
     print("自动读取应用名称...")
@@ -347,7 +326,7 @@ def renew(sb) -> bool:
             send_tg_message("[X]", "续期失败(人机验证未过)", "未知")
             return False
     else:
-        print("弹窗内未检测到 Turnstile")  # ← 修复：补全 else 分支，避免逻辑悬空
+        print("弹窗内未检测到 Turnstile")
 
     # ── 5. 确认续期 ──────────────────────────────────────────
     print("点击 Just Reset 确认续期...")
@@ -385,9 +364,6 @@ def renew(sb) -> bool:
         send_tg_message("[!]", "读取剩余时间失败", "未知")
         return False
 
-# ============================================================
-#  脚本执行入口
-# ============================================================
 def main():
     print("=" * 50)
     print("   JustRunMy.app 自动登录与续期脚本")
