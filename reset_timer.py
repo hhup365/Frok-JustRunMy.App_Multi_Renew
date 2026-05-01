@@ -4,6 +4,7 @@
 import os
 import sys
 import time
+import json
 import subprocess
 import requests
 from seleniumbase import SB
@@ -23,6 +24,21 @@ if not EMAIL or not PASSWORD:
 
 DYNAMIC_APP_NAME = "未知应用"
 
+def mask_ip(ip_str: str) -> str:
+    try:
+        data = json.loads(ip_str.strip())
+        ip = data.get("ip", ip_str)
+    except Exception:
+        ip = ip_str.strip()
+
+    parts = ip.split(".")
+    if len(parts) == 4:
+        return f"{parts[0]}.*.*.{parts[3]}"
+    return "*.*.*.*"
+
+# ============================================================
+#  Telegram 推送模块
+# ============================================================
 def send_tg_message(status_icon, status_text, time_left):
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
         print("未配置 TG_TOKEN 或 TG_ID，跳过 Telegram 推送。")
@@ -31,15 +47,33 @@ def send_tg_message(status_icon, status_text, time_left):
     local_time = time.gmtime(time.time() + 8 * 3600)
     current_time_str = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
 
+    # 根据状态选择标题样式
+    if "[OK]" in status_icon or status_icon == "[OK]":
+        header = "✅ 续期成功"
+    elif "[X]" in status_icon or status_icon == "[X]":
+        header = "❌ 续期失败"
+    elif "[!]" in status_icon or status_icon == "[!]":
+        header = "⚠️ 续期异常"
+    else:
+        header = f"{status_icon} 续期通知"
+
     text = (
-        f"{DYNAMIC_APP_NAME}\n"
-        f"{status_icon} {status_text}\n"
-        f"剩余: {time_left}\n"
-        f"时间: {current_time_str}"
+        "🔄 *JustRunMy* 自动续期报告\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"{header}\n"
+        f"🖥  应用：`{DYNAMIC_APP_NAME}`\n"
+        f"📋  状态：{status_text}\n"
+        f"⏳  剩余：`{time_left}`\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"🕐  时间：`{current_time_str}`"
     )
 
     url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TG_CHAT_ID, "text": text}
+    payload = {
+        "chat_id": TG_CHAT_ID,
+        "text": text,
+        "parse_mode": "Markdown"
+    }
 
     try:
         r = requests.post(url, json=payload, timeout=10)
@@ -124,6 +158,9 @@ _WININFO_JS = """
 })()
 """
 
+# ============================================================
+#  底层输入工具
+# ============================================================
 def js_fill_input(sb, selector: str, text: str):
     safe_text = text.replace('\\', '\\\\').replace('"', '\\"')
     sb.execute_script(f"""
@@ -190,6 +227,9 @@ def _click_turnstile(sb):
     print(f"  物理级点击 Turnstile ({ax}, {ay})")
     _xdotool_click(ax, ay)
 
+# ============================================================
+#  人机验证处理
+# ============================================================
 def handle_turnstile(sb) -> bool:
     print("处理 Cloudflare Turnstile 验证...")
     time.sleep(2)
@@ -223,6 +263,9 @@ def handle_turnstile(sb) -> bool:
     print("  Turnstile 6 次均失败")
     return False
 
+# ============================================================
+#  账户登录模块
+# ============================================================
 def login(sb) -> bool:
     print(f"打开登录页面: {LOGIN_URL}")
     sb.uc_open_with_reconnect(LOGIN_URL, reconnect_time=5)
@@ -278,6 +321,9 @@ def login(sb) -> bool:
     sb.save_screenshot("login_failed.png")
     return False
 
+# ============================================================
+#  自动续期模块
+# ============================================================
 def renew(sb) -> bool:
     global DYNAMIC_APP_NAME
 
@@ -349,7 +395,7 @@ def renew(sb) -> bool:
         print(f"当前应用剩余时间: {timer_text}")
 
         if "2 days 23" in timer_text or "3 days" in timer_text:
-            print("续期任务圆满完成！")
+            print("续期任务完成！")
             sb.save_screenshot("renew_success.png")
             send_tg_message("[OK]", "续期完成", timer_text)
             return True
@@ -364,6 +410,9 @@ def renew(sb) -> bool:
         send_tg_message("[!]", "读取剩余时间失败", "未知")
         return False
 
+# ============================================================
+#  脚本执行入口
+# ============================================================
 def main():
     print("=" * 50)
     print("   JustRunMy.app 自动登录与续期脚本")
@@ -381,7 +430,8 @@ def main():
         print("浏览器已启动")
         try:
             sb.open("https://api.ipify.org/?format=json")
-            print(f"当前出口 IP: {sb.get_text('body')}")
+            raw = sb.get_text('body')
+            print(f"当前出口 IP: {mask_ip(raw)}")
         except Exception:
             pass
 
